@@ -41,7 +41,7 @@ MIDI + WAV are the bridge. No automation lanes or timeline audio clips yet
 
 ## Tests
 ```sh
-node tests/test_core.mjs
+node tests/test_core.mjs && node tests/runtime_harness.mjs
 ```
 
 ## License
