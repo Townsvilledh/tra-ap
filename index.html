@@ -321,7 +321,7 @@ function updatePlayhead(gstep){
  const stepIn=gstep%totalSteps,secs=playedSteps*stepDur();
  $("#clockTime").textContent=Math.floor(secs/60)+":"+String(Math.floor(secs%60)).padStart(2,"0")+"."+Math.floor((secs%1)*10);
  $("#clockBar").textContent="bar "+(Math.floor(stepIn/16)+1)+" · beat "+(Math.floor((stepIn%16)/4)+1);
- const totalSecs=(mode==="pattern"?curPat().bars*4:songBars()*4)*stepDur();
+ const totalSecs=(mode==="pattern"?curPat().bars*16:songBars()*16)*stepDur();
  $("#progFill").style.width=clamp(totalSecs?((stepIn*stepDur())/totalSecs)*100:0,0,100)+"%";
  const threeMinStep=180/stepDur();$("#marker3").style.left=clamp(totalSteps?threeMinStep/totalSteps*100:60,0,100)+"%";
  $$(".step.playing").forEach(e=>e.classList.remove("playing"));
@@ -352,16 +352,22 @@ $("#projName").onchange=e=>{proj.name=e.target.value;autosave();};
 const PCOLORS=["#ffb03a","#b78cff","#57e6a9","#ff8fab","#6ec3ff","#ffe45e","#ff9e6e","#9dff70"];
 function renderChips(){$("#patternChips").innerHTML="";proj.patterns.forEach((p,i)=>{const b=document.createElement("button");b.className="chip"+(p.id===proj.cur?" on":"");b.style.background=p.id===proj.cur?PCOLORS[i%8]:"";b.textContent=p.name+" · "+p.bars+"b";b.onclick=()=>{proj.cur=p.id;selChan=selChan;renderAll();};$("#patternChips").appendChild(b);});
  $("#patName").value=curPat().name;$("#patBars").value=String(curPat().bars);updateSongLabel();}
-function updateSongLabel(){$("#songLenLabel").textContent="Song: "+songBars()+" bars ≈ "+(songBars()*4*stepDur()).toFixed(0)+"s at "+proj.bpm+" BPM · 64-bar Flow";}
+function updateSongLabel(){$("#songLenLabel").textContent="Song: "+songBars()+" bars ≈ "+(songBars()*16*stepDur()).toFixed(0)+"s at "+proj.bpm+" BPM · 64-bar Flow";}
 function renderPlaylist(){const z=+$("#plZoom").value;const pl=$("#playlist");pl.style.gridTemplateColumns="64px repeat(64,"+z+"px)";pl.innerHTML="";
  const corner=document.createElement("div");corner.className="lanelabel";corner.textContent="Lane";pl.appendChild(corner);
  for(let bar=0;bar<64;bar++){const h=document.createElement("div");h.className="barhead";h.textContent=bar+1;pl.appendChild(h);}
  proj.playlist.forEach((lane,li)=>{const lab=document.createElement("div");lab.className="lanelabel";lab.textContent="Scene "+(li+1);pl.appendChild(lab);
-  lane.forEach((pid,bar)=>{const c=document.createElement("div");c.className="plcell"+(bar%4===0?" barstart":"");c.dataset.bar=bar;
-   if(pid){const p=patById(pid);if(p){c.textContent=bar===lane.indexOf(pid)||!lane[bar-1]||lane[bar-1]!==pid?p.name:"·";const idx=proj.patterns.indexOf(p);c.style.background=PCOLORS[idx%8];c.classList.add("filled");}}
-   c.onclick=()=>{snapshot();if(tool==="erase"){proj.playlist[li][bar]=null;}else{proj.playlist[li][bar]=proj.cur;}renderPlaylist();autosave();};
-   c.ondblclick=()=>{if(pid){proj.cur=pid;renderAll();$$(".tabs button")[1].click();toast("Editing scene: "+patById(pid).name);}};
-   pl.appendChild(c);});});}
+  let bar=0;while(bar<64){const pid=lane[bar];
+   if(pid&&patById(pid)){const p=patById(pid);let next=64;for(let k=bar+1;k<64;k++)if(lane[k]){next=k;break;}
+    const span=Math.max(1,Math.min(p.bars,next-bar));const c=document.createElement("div");c.className="plcell filled"+(bar%4===0?" barstart":"");c.dataset.bar=bar;c.style.gridColumn="span "+span;
+    c.textContent=p.name;c.title=p.name+" · "+p.bars+" bars · starts bar "+(bar+1);const idx=proj.patterns.indexOf(p);c.style.background=PCOLORS[idx%8];
+    c.onclick=()=>{snapshot();if(tool==="erase"){proj.playlist[li][bar]=null;}else{proj.playlist[li][bar]=proj.cur;}renderPlaylist();autosave();};
+    c.ondblclick=()=>{proj.cur=pid;renderAll();$$(".tabs button")[1].click();toast("Editing scene: "+p.name);};
+    pl.appendChild(c);bar+=span;}
+   else{const c=document.createElement("div");c.className="plcell"+(bar%4===0?" barstart":"");c.dataset.bar=bar;
+    c.onclick=()=>{snapshot();if(tool!=="erase"){proj.playlist[li][bar]=proj.cur;renderPlaylist();autosave();}};
+    pl.appendChild(c);bar++;}}});
+}
 $("#toolPlace").onclick=()=>{tool="place";$("#toolPlace").classList.add("on");$("#toolErase").classList.remove("on");};
 $("#toolErase").onclick=()=>{tool="erase";$("#toolErase").classList.add("on");$("#toolPlace").classList.remove("on");};
 $("#plZoom").oninput=renderPlaylist;
@@ -461,7 +467,7 @@ function buildFromSentence(text){const t=text.toLowerCase();snapshot();
  [0,16].forEach(s=>p.notes.push({id:uid(),ch:"bass",pitch:root-12,start:s,len:12,vel:.85}));
  [0,16].forEach(s=>{p.notes.push({id:uid(),ch:"pad",pitch:root,start:s,len:16,vel:.4});p.notes.push({id:uid(),ch:"pad",pitch:root+ (mood==="major"?4:3),start:s,len:16,vel:.35});});
  proj.patterns.push(p);proj.cur=p.id;return p;}
-$("#sentenceBtn").onclick=()=>{const p=buildFromSentence($("#sentenceInput").value||"chill piano in Am at 100");renderAll();autosave();toast("Built scene “"+p.name+"” — press Play");startPlay();};
+$("#sentenceBtn").onclick=()=>{const p=buildFromSentence($("#sentenceInput").value||"chill piano in Am at 100");renderAll();autosave();toast("Built scene “"+p.name+"” — playing now");startPlay();};
 const GENRES={"Trap":{bpm:140,kick:[0,7,10,16,23,26],snare:[8,24],hatD:.35},"Afrobeats":{bpm:104,kick:[0,10,16,26],snare:[8,24],hatD:.6},"Amapiano":{bpm:112,kick:[0,8,16,24],snare:[],hatD:.8,log:true},"Drill":{bpm:142,kick:[0,10,16,22],snare:[8,24],hatD:.5},"Boom bap":{bpm:92,kick:[0,10,16,27],snare:[8,24],hatD:.65},"Afro-soul":{bpm:96,kick:[0,16],snare:[],hatD:.4,clap:[8,24]}};
 let ideaDeck=[];
 function genIdea(genre){const g=GENRES[genre],p=mkPattern(genre+" idea",2,proj.channels);
@@ -471,7 +477,7 @@ function genIdea(genre){const g=GENRES[genre],p=mkPattern(genre+" idea",2,proj.c
  const scale=scaleNotes();let steps=[0,4,8,12,16,20,24,28].filter(()=>Math.random()<.8);
  steps.forEach(s=>p.notes.push({id:uid(),ch:Math.random()<.5?"marimba":"piano",pitch:scale[(Math.random()*scale.length)|0]+12,start:s,len:3,vel:.6+Math.random()*.35}));
  const root=(KEYS[proj.key]||KEYS["A minor"]).root;[0,16].forEach(s=>p.notes.push({id:uid(),ch:"bass",pitch:root-12,start:s,len:10,vel:.85}));
- return{genre,pattern:p,desc:genre+" groove at ~"+g.bpm+" BPM — "+steps.length+" melody hits, "+(g.log?"log-drum led":"kick-led")+", in "+proj.key+"."};}
+ return{genre,pattern:p,desc:genre+" groove — "+steps.length+" melody hits, "+(g.log?"log-drum led":"kick-led")+", in "+proj.key+". Plays at your "+proj.bpm+" BPM ("+genre+" home tempo is ~"+g.bpm+")."};}
 $("#ideaBtn").onclick=()=>{ideaDeck=[0,1,2].map(()=>genIdea($("#ideaGenre").value));const w=$("#ideaCards");w.innerHTML="";
  ideaDeck.forEach((idea,i)=>{const d=document.createElement("div");d.className="idea";d.innerHTML="<h4>🃏 "+idea.pattern.name+"</h4><p>"+idea.desc+"</p>";
   const row=document.createElement("div");row.className="row";
@@ -504,15 +510,15 @@ function finishListen(frames){snapshot();const p=mkPattern(listenMode==="hum"?"H
 async function runSoundCheck(){ensureAudio();await AC.resume();const out=$("#soundCheckOut");out.innerHTML="<p>Checking\u2026 keep the volume up.</p>";
  const saved=proj.channels.map(c=>({id:c.id,mute:c.mute,solo:c.solo}));
  const restore=()=>{saved.forEach(sv=>{const c=chById(sv.id);c.mute=sv.mute;c.solo=sv.solo;});};
- const rows=[];
+ const rows=[];await new Promise(r=>setTimeout(r,350));
  for(const ch of proj.channels){
   if(ch.mute){rows.push({name:ch.name,preset:ch.preset,ok:false,peak:0,why:"Channel is MUTED in the Mix tab"});continue;}
   if(ch.vol===0){rows.push({name:ch.name,preset:ch.preset,ok:false,peak:0,why:"Channel volume is 0 in the Mix tab"});continue;}
   restore();proj.channels.forEach(c=>c.solo=c.id===ch.id);
   const silent=new Uint8Array(analyser.frequencyBinCount);analyser.getByteFrequencyData(silent);
-  trigger(ch.id,ch.preset==="log"?45:DRUMS.includes(ch.preset)?null:72,AC.currentTime+.02,.95,.4);
-  await new Promise(r=>setTimeout(r,420));
-  const data=new Uint8Array(analyser.frequencyBinCount);analyser.getByteFrequencyData(data);const peak=Math.max(...data);
+  trigger(ch.id,ch.preset==="log"?45:DRUMS.includes(ch.preset)?null:72,AC.currentTime+.02,.95,.5);
+  let peak=0;const data=new Uint8Array(analyser.frequencyBinCount);
+  for(let k=0;k<11;k++){await new Promise(r=>setTimeout(r,45));analyser.getByteFrequencyData(data);peak=Math.max(peak,Math.max(...data));}
   const ok=peak>12;rows.push({name:ch.name,preset:ch.preset,ok,peak,why:ok?"\u2014":(AC.state!=="running"?"Audio is asleep \u2014 tap Play once to wake it":"No signal measured \u2014 try again with volume up")});}
  restore();refreshChains();
  out.innerHTML="<table class='check'><tr><th>Channel</th><th>Sound</th><th>Result</th><th>Note</th></tr>"+rows.map(r=>"<tr><td>"+r.name+"</td><td>"+r.preset+"</td><td class='"+(r.ok?"pass":"fail")+"'>"+(r.ok?"\u2713 heard ("+r.peak+")":"\u2717 silent")+"</td><td>"+r.why+"</td></tr>").join("")+"</table><p>Audio context: "+AC.state+" \u00b7 "+AC.sampleRate+" Hz. Each channel was solo-tested in turn; your mute/solo settings were restored afterwards.</p>";}
