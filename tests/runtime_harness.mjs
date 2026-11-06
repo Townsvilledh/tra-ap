@@ -54,6 +54,7 @@ const tests = `
  R.push(["scene names", proj.patterns.map(p=>p.name).join(",")==="Groove,Marimba Talk,Break,Log Party"]);
  R.push(["10 channels", proj.channels.length===10]);
  R.push(["song is >=13 bars", songBars()>=13]);
+ R.push(["song duration math (15 bars @112 = ~32s)", Math.abs(songBars()*16*stepDur()-32.1)<1]);
  const mb=midiBytes();
  R.push(["MIDI starts with MThd", mb[0]===0x4D&&mb[1]===0x54&&mb[2]===0x68&&mb[3]===0x64]);
  R.push(["MIDI has real content", mb.length>200]);
