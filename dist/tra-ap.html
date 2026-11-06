@@ -93,6 +93,7 @@ table.check td,table.check th{border-bottom:1px solid var(--line);padding:6px 4p
   <label>Swing <input id="swing" type="range" min="0" max="40" value="8" style="width:80px"></label>
   <label>Key <select id="keySel"><option>A minor</option><option>C major</option><option>G major</option><option>D minor</option><option>F major</option><option>E minor</option></select></label>
   <div class="clock"><span id="clockTime">0:00.0</span> <small id="clockBar">bar 1 · beat 1</small></div>
+  <button id="audioPill" class="small">🔊 Audio: tap Play</button>
   <button id="metroBtn" class="small">Click: off</button>
  </div>
  <div class="progress"><i id="progFill"></i><b id="marker3" style="left:60%"></b></div>
@@ -257,7 +258,9 @@ function buildChain(ctx,ch,masterNode,dly,vrb){
  return{inp,lo,mid,hi,g,pan};}
 function ensureAudio(){
  if(AC){if(AC.state==="suspended")AC.resume();return AC;}
- AC=new (window.AudioContext||window.webkitAudioContext)();
+ const ACtor=window.AudioContext||window.webkitAudioContext;
+ try{AC=new ACtor({latencyHint:"playback"});}catch(e){AC=new ACtor();}
+ AC.onstatechange=()=>{updAudioPill();if(AC.state==="running"&&playing){nextTime=Math.max(nextTime,AC.currentTime+.05);}};
  master=AC.createGain();master.gain.value=$("#masterVol").value/100;
  comp=AC.createDynamicsCompressor();comp.threshold.value=-14;comp.ratio.value=5;comp.attack.value=.004;comp.release.value=.18;
  analyser=AC.createAnalyser();analyser.fftSize=512;
@@ -268,10 +271,18 @@ function ensureAudio(){
  verbBus=AC.createGain();const conv=AC.createConvolver();conv.buffer=impulse(AC,2.2,2.4);verbBus.connect(conv);conv.connect(master);verbBus._conv=conv;
  chains={};proj.channels.forEach(ch=>chains[ch.id]=buildChain(AC,ch,master,delayBus,verbBus));
  return AC;}
+function updAudioPill(){const p=$("#audioPill");if(!p)return;if(!AC){p.textContent="🔊 Audio: tap Play";p.classList.remove("on");return;}p.textContent=AC.state==="running"?"🔊 Audio: on":"🔊 Audio: "+AC.state+" — tap to wake";p.classList.toggle("on",AC.state==="running");}
+function wakeAudio(user){ensureAudio();if(AC.state!=="running"){const r=AC.resume();if(r&&r.catch)r.catch(()=>{});}updAudioPill();if(user)toast(AC.state==="running"?"Audio is awake":"Waking audio… tap Play once more if it stays asleep");}
+$("#audioPill").onclick=()=>wakeAudio(true);
+setInterval(()=>{if(playing&&AC&&AC.state!=="running"){const r=AC.resume();if(r&&r.catch)r.catch(()=>{});}if(AC&&playing&&document.hidden===false&&typeof wakeLock!=="undefined"&&!wakeLock)getWakeLock();updAudioPill();},900);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){if(AC&&AC.state!=="running")wakeAudio(false);if(playing)getWakeLock();}});
+document.addEventListener("pointerdown",()=>{if(AC&&AC.state!=="running"){const r=AC.resume();if(r&&r.catch)r.catch(()=>{});}},{passive:true});
 function refreshChains(){if(!AC)return;proj.channels.forEach(ch=>{const c=chains[ch.id];if(!c)return;c.g.gain.value=ch.vol;c.lo.gain.value=ch.eq[0];c.mid.gain.value=ch.eq[1];c.hi.gain.value=ch.eq[2];if(c.pan)c.pan.pan.value=ch.pan;});}
 let noiseBuf=null;function getNoise(ctx){if(noiseBuf&&noiseBuf.sampleRate===ctx.sampleRate)return noiseBuf;const b=ctx.createBuffer(1,ctx.sampleRate,ctx.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;noiseBuf=b;return b;}
 function env(g,t,a,peak,dur,dec){g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(Math.max(.0002,peak),t+a);g.gain.exponentialRampToValueAtTime(.0001,t+Math.max(a+.02,dur*dec));}
+let activeVoices=0;
 function playVoice(ctx,dest,ch,midi,t,dur,vel){
+ if(AC&&ctx===AC){if(activeVoices>56)return;activeVoices++;setTimeout(()=>{activeVoices=Math.max(0,activeVoices-1);},((dur||.3)+1.2)*1000);}
  vel=vel||.9;const p=ch.preset,b=ch.bright,P=ch.punch,D=ch.decay;
  const out=ctx.createGain();out.connect(dest);
  if(ch.sample){const s=ctx.createBufferSource();s.buffer=ch.sample;if(midi)s.playbackRate.value=Math.pow(2,(midi-60)/12);const g=ctx.createGain();g.gain.value=vel;s.connect(g);g.connect(out);s.start(t);s.stop(t+Math.min(dur+0.3,ch.sample.duration));return;}
@@ -329,12 +340,13 @@ function updatePlayhead(gstep){
  $$(".plcell.playing").forEach(e=>e.classList.remove("playing"));
  if(mode==="song")$$(".plcell").forEach(e=>{if(+e.dataset.bar===Math.floor(stepIn/16))e.classList.add("playing");});
  drawPR(stepIn);}
-function startPlay(){ensureAudio();if(playing)return;playing=true;$("#playBtn").textContent="⏸ Pause";nextTime=AC.currentTime+.06;
- schedTimer=setInterval(()=>{while(nextTime<AC.currentTime+.12){scheduleStep(curStep,nextTime);nextTime+=stepDur();curStep++;playedSteps++;}},25);}
-function stopPlay(){playing=false;clearInterval(schedTimer);curStep=0;playedSteps=0;$("#playBtn").textContent="▶ Play";$("#clockTime").textContent="0:00.0";$("#progFill").style.width="0%";$$(".playing").forEach(e=>e.classList.remove("playing"));drawPR(-1);}
+let wakeLock=null;async function getWakeLock(){try{if(navigator.wakeLock&&!wakeLock){wakeLock=await navigator.wakeLock.request("screen");wakeLock.addEventListener&&wakeLock.addEventListener("release",()=>wakeLock=null);}}catch(e){}}
+function startPlay(){ensureAudio();if(playing)return;getWakeLock();playing=true;$("#playBtn").textContent="⏸ Pause";nextTime=AC.currentTime+.06;
+ schedTimer=setInterval(()=>{if(nextTime<AC.currentTime-.25)nextTime=AC.currentTime+.05;while(nextTime<AC.currentTime+.12){scheduleStep(curStep,nextTime);nextTime+=stepDur();curStep++;playedSteps++;}},25);}
+function stopPlay(){playing=false;clearInterval(schedTimer);if(wakeLock){try{wakeLock.release();}catch(e){}wakeLock=null;}curStep=0;playedSteps=0;$("#playBtn").textContent="▶ Play";$("#clockTime").textContent="0:00.0";$("#progFill").style.width="0%";$$(".playing").forEach(e=>e.classList.remove("playing"));drawPR(-1);}
 /* ===== Views ===== */
 $$(".tabs button").forEach(b=>b.onclick=()=>{$$(".tabs button").forEach(x=>x.classList.remove("on"));b.classList.add("on");$$(".view").forEach(v=>v.classList.remove("on"));$("#view-"+b.dataset.view).classList.add("on");if(b.dataset.view==="keys")drawPR(-1);});
-$("#playBtn").onclick=()=>{if(playing){playing=false;clearInterval(schedTimer);$("#playBtn").textContent="▶ Play";}else startPlay();};
+$("#playBtn").onclick=()=>{if(playing&&AC&&AC.state!=="running"){wakeAudio(true);return;}if(playing){playing=false;clearInterval(schedTimer);if(wakeLock){try{wakeLock.release();}catch(e){}wakeLock=null;}$("#playBtn").textContent="▶ Play";}else startPlay();};
 $("#stopBtn").onclick=stopPlay;
 $("#modePattern").onclick=()=>{mode="pattern";$("#modePattern").classList.add("on");$("#modeSong").classList.remove("on");stopPlay();};
 $("#modeSong").onclick=()=>{mode="song";$("#modeSong").classList.add("on");$("#modePattern").classList.remove("on");stopPlay();};

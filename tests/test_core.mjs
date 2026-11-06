@@ -51,6 +51,11 @@ for (const [needle, name] of [
   ["roundRect", "piano roll rendering"],
   ["createConvolver", "reverb bus"],
   ["createDynamicsCompressor", "master compressor"],
+  ["latencyHint", "playback buffer (fewer dropouts on low-end phones)"],
+  ["wakeLock", "screen wake lock while playing"],
+  ["visibilitychange", "auto-resume when returning to the app"],
+  ["onstatechange", "audio state recovery"],
+  ["activeVoices>56", "live voice cap against CPU overload"],
 ]) ok(html.includes(needle), "feature: " + name);
 
 // 6. No copied/proprietary assets: no external URLs, no audio files referenced

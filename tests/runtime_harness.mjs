@@ -38,7 +38,7 @@ const sandbox = {
   Blob: class {}, location: { hash: "" }, navigator: {},
   localStorage: { _m: {}, getItem(k) { return this._m[k] ?? null; }, setItem(k, v) { this._m[k] = v; }, removeItem(k) { delete this._m[k]; } },
   document: {
-    querySelector: (s) => elFor(s), querySelectorAll: () => [],
+    querySelector: (s) => elFor(s), querySelectorAll: () => [], addEventListener: () => {}, hidden: false,
     createElement: (t) => new El(t), documentElement: new El("html"), fullscreenElement: null,
   },
 };

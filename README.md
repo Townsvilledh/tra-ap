@@ -8,6 +8,10 @@ Built for a phone in landscape (Samsung A12 and friends), designed to be a
 real studio, not a toy — and deliberately **not** a clone of FL Studio or
 Logic. See [SPEC.md](SPEC.md) for what it is, what it isn't, and why.
 
+## Changelog
+- **v7.1** — audio resilience: auto-resume when the phone interrupts audio (screen off, app switch, calls), screen wake-lock while playing, anti-burst scheduler, playback-sized audio buffer + live voice cap for low-end phones, and a 🔊 Audio status pill in the header (tap it to wake the audio).
+- **v7.0** — first public release.
+
 ## Try it
 - **Live:** open `index.html` from GitHub Pages (link in the repo header), or
 - **Offline:** download `dist/tra-ap.html`, open it in any mobile/desktop
